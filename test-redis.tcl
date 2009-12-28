@@ -749,7 +749,49 @@ proc main {server port} {
         catch {$r lset nolist 0 foo} err
         format $err
     } {ERR*value*}
-
+    
+    test {LSETMAXLEN list not exist} {
+        $r del mylist
+        $r lsetmaxlen mylist 2
+    } {OK}
+    
+    test {LSETMAXLEN limit removed on deletion} {
+        $r del mylist
+        foreach x {99 98 97 96 95} {
+            $r rpush mylist $x
+        }        
+        $r lrange mylist 0 -1        
+    } {99 98 97 96 95}
+    
+    test {LSETMAXLEN old data deleted on right append} {
+        $r del mylist
+        $r rpush mylist 100
+        $r lsetmaxlen mylist 2
+        foreach x {99 98 97 96 95} {
+            $r rpush mylist $x
+        }        
+        $r lrange mylist 0 -1        
+    } {96 95}    
+    
+    test {LSETMAXLEN old data deleted on left append} {
+        $r del mylist
+        $r lpush mylist 100
+        $r lsetmaxlen mylist 2
+        foreach x {99 98 97 96 95} {
+            $r lpush mylist $x
+        }        
+        $r lrange mylist 0 -1        
+    } {95 96}    
+    
+    test {LSETMAXLEN empty list created on non-exist} {
+        $r del mylist
+        $r lsetmaxlen mylist 2
+        foreach x {99 98 97 96 95} {
+            $r lpush mylist $x
+        }        
+        $r lrange mylist 0 -1        
+    } {95 96}        
+    
     test {SADD, SCARD, SISMEMBER, SMEMBERS basics} {
         $r sadd myset foo
         $r sadd myset bar
