@@ -75,9 +75,9 @@ void listRelease(list *list)
 /* Set the maximum length of a list */
 void listSetMaxLen(list *list, int maxlen)
 {
-	if (maxlen>-2) {
-		list->maxlen = maxlen;
-	}
+    if (maxlen>-2) {
+        list->maxlen = maxlen;
+    }
 }
 
 /* Add a new node to the list, to head, contaning the specified 'value'

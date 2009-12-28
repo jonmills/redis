@@ -3726,8 +3726,11 @@ static void ltrimCommand(redisClient *c) {
 }
 
 /* Set the maximum length for a list.
- * If this maximum length is breached, older data will automatically
- * be deleted. */
+ * If this maximum length is breached, data 
+ * from the other end of the list will 
+ * automatically be deleted when new data
+ * is appended. 
+ */
 static void lsetmaxlenCommand(redisClient *c) {
     robj *o;
     list *list;
