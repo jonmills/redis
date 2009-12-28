@@ -52,6 +52,7 @@ typedef struct list {
     int (*match)(void *ptr, void *key);
     unsigned int len;
     listIter iter;
+    int maxlen;
 } list;
 
 /* Functions implemented as macros */
@@ -85,6 +86,7 @@ listNode *listIndex(list *list, int index);
 void listRewind(list *list);
 void listRewindTail(list *list);
 listNode *listYield(list *list);
+void listSetMaxLen(list *list, int maxlen);
 
 /* Directions for iterators */
 #define AL_START_HEAD 0

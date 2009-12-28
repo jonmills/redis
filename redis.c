@@ -27,7 +27,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define REDIS_VERSION "1.3.0"
+#define REDIS_VERSION "1.3.0_issue_127"
 
 #include "fmacros.h"
 #include "config.h"
@@ -470,6 +470,7 @@ static void llenCommand(redisClient *c);
 static void lindexCommand(redisClient *c);
 static void lrangeCommand(redisClient *c);
 static void ltrimCommand(redisClient *c);
+static void lsetmaxlenCommand(redisClient *c);
 static void typeCommand(redisClient *c);
 static void lsetCommand(redisClient *c);
 static void saddCommand(redisClient *c);
@@ -536,6 +537,7 @@ static struct redisCommand cmdTable[] = {
     {"lset",lsetCommand,4,REDIS_CMD_BULK|REDIS_CMD_DENYOOM},
     {"lrange",lrangeCommand,4,REDIS_CMD_INLINE},
     {"ltrim",ltrimCommand,4,REDIS_CMD_INLINE},
+    {"lsetmaxlen",lsetmaxlenCommand,3,REDIS_CMD_INLINE},
     {"lrem",lremCommand,4,REDIS_CMD_BULK},
     {"rpoplpush",rpoplpushcommand,3,REDIS_CMD_BULK|REDIS_CMD_DENYOOM},
     {"sadd",saddCommand,3,REDIS_CMD_BULK|REDIS_CMD_DENYOOM},
@@ -3717,6 +3719,38 @@ static void ltrimCommand(redisClient *c) {
                 ln = listLast(list);
                 listDelNode(list,ln);
             }
+            server.dirty++;
+            addReply(c,shared.ok);
+        }
+    }
+}
+
+/* Set the maximum length for a list.
+ * If this maximum length is breached, older data will automatically
+ * be deleted. */
+static void lsetmaxlenCommand(redisClient *c) {
+    robj *o;
+    list *list;
+    int newmaxlen = atoi(c->argv[2]->ptr);
+
+    o = lookupKeyWrite(c->db,c->argv[1]);
+    if (o == NULL) {
+    	/* List doesn't exist yet - create a new
+    	 * empty list.
+    	 */
+        o = createListObject();
+        dictAdd(c->db->dict,c->argv[1],o);
+        incrRefCount(c->argv[1]);
+        list = o->ptr;
+        listSetMaxLen(list,newmaxlen);
+        server.dirty++;
+        addReply(c,shared.ok);
+    } else {
+        if (o->type != REDIS_LIST) {
+            addReply(c,shared.wrongtypeerr);
+        } else {
+        	list = o->ptr;
+        	listSetMaxLen(list,newmaxlen);
             server.dirty++;
             addReply(c,shared.ok);
         }

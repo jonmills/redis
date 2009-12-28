@@ -49,6 +49,7 @@ list *listCreate(void)
     list->dup = NULL;
     list->free = NULL;
     list->match = NULL;
+    list->maxlen = -1;
     return list;
 }
 
@@ -69,6 +70,14 @@ void listRelease(list *list)
         current = next;
     }
     zfree(list);
+}
+
+/* Set the maximum length of a list */
+void listSetMaxLen(list *list, int maxlen)
+{
+	if (maxlen>-2) {
+		list->maxlen = maxlen;
+	}
 }
 
 /* Add a new node to the list, to head, contaning the specified 'value'
@@ -94,6 +103,15 @@ list *listAddNodeHead(list *list, void *value)
         list->head = node;
     }
     list->len++;
+    if ((list->maxlen > 0) && ((long)list->len > (long)list->maxlen)) {
+    	/* List is too long - truncate it - from the other end */
+    	int num_to_delete = list->len - list->maxlen;
+    	int j;
+    	for (j=0;j<num_to_delete;j++) {
+    		node = list->tail;
+    		listDelNode(list,node);
+    	}
+    }
     return list;
 }
 
@@ -120,6 +138,15 @@ list *listAddNodeTail(list *list, void *value)
         list->tail = node;
     }
     list->len++;
+    if ((list->maxlen > 0) && ((long)list->len > (long)list->maxlen)) {
+    	/* List is too long - truncate it - from the other end */
+    	int num_to_delete = list->len - list->maxlen;
+    	int j;
+    	for (j=0;j<num_to_delete;j++) {
+    		node = list->head;
+    		listDelNode(list,node);
+    	}
+    }
     return list;
 }
 
