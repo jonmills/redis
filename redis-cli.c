@@ -71,6 +71,8 @@ static struct redisCommand cmdTable[] = {
     {"lpush",3,REDIS_CMD_BULK},
     {"rpop",2,REDIS_CMD_INLINE},
     {"lpop",2,REDIS_CMD_INLINE},
+    {"brpop",-3,REDIS_CMD_INLINE},
+    {"blpop",-3,REDIS_CMD_INLINE},
     {"llen",2,REDIS_CMD_INLINE},
     {"lindex",3,REDIS_CMD_INLINE},
     {"lset",4,REDIS_CMD_BULK},
@@ -132,10 +134,12 @@ static struct redisCommand cmdTable[] = {
     {"debug",-2,REDIS_CMD_INLINE},
     {"mset",-3,REDIS_CMD_MULTIBULK},
     {"msetnx",-3,REDIS_CMD_MULTIBULK},
+    {"monitor",1,REDIS_CMD_INLINE},
     {NULL,0,0}
 };
 
 static int cliReadReply(int fd);
+static void usage();
 
 static struct redisCommand *lookupCommand(char *name) {
     int j = 0;
@@ -185,6 +189,7 @@ static int cliReadSingleLineReply(int fd, int quiet) {
     if (reply == NULL) return 1;
     if (!quiet)
         printf("%s\n", reply);
+    sdsfree(reply);
     return 0;
 }
 
@@ -284,6 +289,7 @@ static int selectDb(int fd)
 static int cliSendCommand(int argc, char **argv) {
     struct redisCommand *rc = lookupCommand(argv[0]);
     int fd, j, retval = 0;
+    int read_forever = 0;
     sds cmd;
 
     if (!rc) {
@@ -296,6 +302,7 @@ static int cliSendCommand(int argc, char **argv) {
             fprintf(stderr,"Wrong number of arguments for '%s'\n",rc->name);
             return 1;
     }
+    if (!strcasecmp(rc->name,"monitor")) read_forever = 1;
     if ((fd = cliConnect()) == -1) return 1;
 
     /* Select db number */
@@ -334,6 +341,11 @@ static int cliSendCommand(int argc, char **argv) {
         }
         anetWrite(fd,cmd,sdslen(cmd));
         sdsfree(cmd);
+
+        while (read_forever) {
+            cliReadSingleLineReply(fd,0);
+        }
+
         retval = cliReadReply(fd);
         if (retval) {
             close(fd);
@@ -358,6 +370,8 @@ static int parseOptions(int argc, char **argv) {
             }
             config.hostip = ip;
             i++;
+        } else if (!strcmp(argv[i],"-h") && lastarg) {
+            usage();
         } else if (!strcmp(argv[i],"-p") && !lastarg) {
             config.hostport = atoi(argv[i+1]);
             i++;
@@ -391,6 +405,16 @@ static sds readArgFromStdin(void) {
     return arg;
 }
 
+static void usage() {
+    fprintf(stderr, "usage: redis-cli [-h host] [-p port] [-r repeat_times] [-n db_num] cmd arg1 arg2 arg3 ... argN\n");
+    fprintf(stderr, "usage: echo \"argN\" | redis-cli [-h host] [-p port] [-r repeat_times] [-n db_num] cmd arg1 arg2 ... arg(N-1)\n");
+    fprintf(stderr, "\nIf a pipe from standard input is detected this data is used as last argument.\n\n");
+    fprintf(stderr, "example: cat /etc/passwd | redis-cli set my_passwd\n");
+    fprintf(stderr, "example: redis-cli get my_passwd\n");
+    fprintf(stderr, "example: redis-cli -r 100 lpush mylist x\n");
+    exit(1);
+}
+
 int main(int argc, char **argv) {
     int firstarg, j;
     char **argvcopy;
@@ -410,15 +434,7 @@ int main(int argc, char **argv) {
     for(j = 0; j < argc; j++)
         argvcopy[j] = sdsnew(argv[j]);
 
-    if (argc < 1) {
-        fprintf(stderr, "usage: redis-cli [-h host] [-p port] [-r repeat_times] [-n db_num] cmd arg1 arg2 arg3 ... argN\n");
-        fprintf(stderr, "usage: echo \"argN\" | redis-cli [-h host] [-p port] [-r repeat_times] [-n db_num] cmd arg1 arg2 ... arg(N-1)\n");
-        fprintf(stderr, "\nIf a pipe from standard input is detected this data is used as last argument.\n\n");
-        fprintf(stderr, "example: cat /etc/passwd | redis-cli set my_passwd\n");
-        fprintf(stderr, "example: redis-cli get my_passwd\n");
-        fprintf(stderr, "example: redis-cli -r 100 lpush mylist x\n");
-        exit(1);
-    }
+    if (argc < 1) usage();
 
     /* Read the last argument from stdandard input if needed */
     if ((rc = lookupCommand(argv[0])) != NULL) {
